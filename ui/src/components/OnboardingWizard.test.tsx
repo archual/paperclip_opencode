@@ -2146,6 +2146,12 @@ describe("OnboardingWizard restore-gate (stale localStorage across accounts)", (
       mockAdapterRegistry.list = [{ type: "claude_local" }, { type: "opencode_local" }];
       const { root } = await openStep4({ adapterType: "opencode_local" });
 
+      // A clean host has no `opencode auth login`, so the wizard must ask the
+      // server for the public OpenCode Go catalog instead of host discovery.
+      expect(mockAgentsApi.adapterModels).toHaveBeenCalledWith(
+        "company-new", "opencode_local", { environmentId: null, provider: "opencode-go" },
+      );
+
       const tiles = [...document.body.querySelectorAll("button[aria-checked]")];
       expect(
         tiles.some((t) => t.getAttribute("aria-checked") === "true"),

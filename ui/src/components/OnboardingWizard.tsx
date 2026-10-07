@@ -920,6 +920,10 @@ function OnboardingWizardInner({
     createdCompanyGoalId, createdProjectId, createdIssueRef,
   ]);
 
+  // `opencode models` only lists providers this host has authenticated, so a
+  // clean host cannot discover the OpenCode Go catalog. Ask the server for the
+  // public Go catalog instead; every other adapter keeps its own list.
+  const adapterModelsProvider = adapterType === "opencode_local" ? "opencode-go" : undefined;
   const {
     data: adapterModels,
     error: adapterModelsError,
@@ -929,9 +933,9 @@ function OnboardingWizardInner({
     // The wizard doesn't expose an environment selector, so models always
     // resolve against the local Paperclip host (environmentId = null).
     queryKey: createdCompanyId
-      ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null)
+      ? queryKeys.agents.adapterModels(createdCompanyId, adapterType, null, adapterModelsProvider)
       : ["agents", "none", "adapter-models", adapterType, null],
-    queryFn: () => agentsApi.adapterModels(createdCompanyId!, adapterType, { environmentId: null }),
+    queryFn: () => agentsApi.adapterModels(createdCompanyId!, adapterType, { environmentId: null, provider: adapterModelsProvider }),
     // Models are picked on step 4 (Connect a model).
     enabled: Boolean(createdCompanyId) && effectiveOnboardingOpen && step === 4
   });
