@@ -251,6 +251,7 @@ const MODEL_SOURCE_INLINE_MARKS: Record<string, ComponentType<{ className?: stri
 const API_KEY_ENV_KEYS: Record<string, string> = {
   claude_local: ANTHROPIC_API_KEY_ENV_KEY,
   codex_local: "OPENAI_API_KEY",
+  opencode_local: "OPENCODE_API_KEY",
 };
 
 function apiKeyEnvKeyFor(adapterType: string): string {
@@ -3008,7 +3009,7 @@ function OnboardingWizardInner({
                                     ? "GEMINI_API_KEY"
                                     : adapterType === "kimi_local"
                                       ? "KIMI_MODEL_NAME + KIMI_MODEL_API_KEY"
-                                    : "OPENAI_API_KEY"}
+                                    : "OPENCODE_API_KEY"}
                               </span>{" "}
                               in env or run{" "}
                               <span className="font-mono">

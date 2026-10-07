@@ -106,3 +106,20 @@ it("exposes loading and allows retry after a catalog failure", async () => {
   await vi.waitFor(() => expect(result?.models).toEqual(catalog));
   expect(result?.error).toBeNull();
 });
+
+it("discovers OpenCode Go models with their transport prefix and does not re-prefix", async () => {
+  const goCatalog = [
+    { id: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash" },
+    { id: "opencode-go/kimi-k3", label: "Kimi K3" },
+  ];
+  vi.mocked(agentsApi.adapterModels).mockResolvedValue(goCatalog);
+  const goAccount: AiManagedConnectionSummary = {
+    id: "go", grantId: "go-grant", companyId: "company", provider: "opencode-go", method: "api_key",
+    name: "My OpenCode Go", ownership: "personal", ownerUserId: "you", isDefault: true, status: "connected",
+  };
+  await mount([goAccount], "opencode_local", { provider: "opencode-go", method: "api_key", mode: "responsible_user" });
+  await vi.waitFor(() => expect(result?.models).toEqual(goCatalog));
+  expect(agentsApi.adapterModels).toHaveBeenCalledWith("company", "opencode_local", { provider: "opencode-go" });
+  expect(result?.models.map(m => m.id)).toEqual(goCatalog.map(m => m.id));
+  expect(result?.resolveModel("opencode-go/glm-5.2")).toBe("opencode-go/glm-5.2");
+});

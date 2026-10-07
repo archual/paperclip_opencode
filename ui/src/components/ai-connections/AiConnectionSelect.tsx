@@ -50,6 +50,10 @@ export function AiConnectionSelect({
       : connections.find(
           (c) => c.id === value?.connectionId && c.grantId === value?.grantId,
         );
+  const modelPrefixFor = (provider: string) =>
+    provider === "openrouter" ? "openrouter/"
+      : provider === "opencode-go" ? "opencode-go/"
+        : undefined;
   const compatible = connections
     .filter(
       (c) =>
@@ -57,7 +61,7 @@ export function AiConnectionSelect({
         isAiConnectionCompatible(
           c,
           adapterType,
-          c.provider === "openrouter" ? "openrouter/" : undefined,
+          modelPrefixFor(c.provider),
         ),
     )
     .sort(
@@ -80,7 +84,7 @@ export function AiConnectionSelect({
       mode: "responsible_user",
     },
     adapterType,
-    requirement.provider === "openrouter" ? "openrouter/" : undefined,
+    modelPrefixFor(requirement.provider),
   );
   const incompatible =
     selected && !compatible.some((c) => c.id === selected.id);

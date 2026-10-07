@@ -139,14 +139,16 @@ describe("agent-created hires use managed AI connections", () => {
     ["opencode_local", {}, "PAPERCLIP_OPENCODE_PROVIDERS"],
     ["opencode_local", { model: "anthropic/claude-sonnet-5" }, "OPENCODE_AUTH_JSON"],
     ["paperclip_runner", { provider: "opencode", model: "anthropic/claude-sonnet-5" }, "OPENCODE_CONFIG_CONTENT"],
+    ["paperclip_runner", { provider: "opencode", model: "anthropic/claude-sonnet-5" }, "OPENROUTER_API_KEY"],
   ] as const)("%s hires with %j keep explicit %s auth outside the managed OpenRouter model catalog", async (adapterType, config, key) => {
     const f = await fixture("openai");
     const p = await poolFixture(f);
     await db.update(agents).set({ runtimeConfig: { aiConnection: p.binding } }).where(eq(agents.id, f.agentId));
     const provider = { npm: "@ai-sdk/anthropic", options: { apiKey: "fixture-explicit-key" }, models: { "claude-sonnet-5": { name: "Claude fixture" } } };
-    const value = JSON.stringify(key === "PAPERCLIP_OPENCODE_PROVIDERS" ? { anthropic: provider }
-      : key === "OPENCODE_CONFIG_CONTENT" ? { provider: { anthropic: provider } }
-      : { anthropic: { type: "api", key: "fixture-explicit-key" } });
+    const value = key === "OPENROUTER_API_KEY" ? "fixture-explicit-key"
+      : JSON.stringify(key === "PAPERCLIP_OPENCODE_PROVIDERS" ? { anthropic: provider }
+        : key === "OPENCODE_CONFIG_CONTENT" ? { provider: { anthropic: provider } }
+          : { anthropic: { type: "api", key: "fixture-explicit-key" } });
     const agent = hired(await request(f.app).post(`/api/companies/${f.companyId}/agent-hires`).send({
       name: "Independent OpenCode teammate", role: "engineer", adapterType, adapterConfig: { ...config, env: { [key]: value } },
     }));

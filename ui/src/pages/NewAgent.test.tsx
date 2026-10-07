@@ -654,12 +654,19 @@ describe("New agent setup", () => {
     expect(dialog).toBeTruthy();
     expect(api.hire).not.toHaveBeenCalled();
     expect(api.testEnvironment).not.toHaveBeenCalled();
+    // The OpenCode harness now defaults to an OpenCode Go API key.
+    expect(dialog.textContent).toContain("OpenCode Go");
     const advanced = [...dialog.querySelectorAll("summary")].find(node => node.textContent?.includes("Advanced providers"))!;
     await act(async () => advanced.click());
-    const openrouter = [...dialog.querySelectorAll("button")].find(node => node.textContent?.includes("OpenRouter"))!;
+    // OpenCode now defaults to OpenCode Go, so reach OpenRouter explicitly
+    // through the provider chooser.
+    const chooseAnother = [...dialog.querySelectorAll("button")].find(node => node.textContent?.includes("Choose another provider or gateway"))!;
+    await act(async () => chooseAnother.click());
+    await settle();
+    const openrouter = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(node => node.textContent?.includes("OpenRouter"))!;
     await act(async () => openrouter.click());
     await settle();
-    const input = dialog.querySelector('[aria-label="API key"]') as HTMLInputElement;
+    const input = document.querySelector('[role="dialog"] [aria-label="API key"]') as HTMLInputElement;
     expect(input).toBeTruthy();
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "example-test-secret");

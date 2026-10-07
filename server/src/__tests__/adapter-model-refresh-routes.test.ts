@@ -31,6 +31,7 @@ const mockEnvironmentService = vi.hoisted(() => ({
   getById: vi.fn(),
 }));
 const mockListOpenCodeModels = vi.hoisted(() => vi.fn());
+const mockListOpenCodeGoModels = vi.hoisted(() => vi.fn());
 
 const mockAgentInstructionsService = vi.hoisted(() => ({
   materializeManagedBundle: vi.fn(),
@@ -74,6 +75,10 @@ function registerModuleMocks() {
       listOpenCodeModels: mockListOpenCodeModels,
     };
   });
+
+  vi.doMock("../services/opencode-go-models.js", () => ({
+    listOpenCodeGoModels: mockListOpenCodeGoModels,
+  }));
 
   vi.doMock("../services/index.js", () => ({
     agentService: () => ({}),
@@ -176,6 +181,8 @@ describe("adapter model refresh route", () => {
     mockEnvironmentService.getById.mockResolvedValue(null);
     mockListOpenCodeModels.mockReset();
     mockListOpenCodeModels.mockResolvedValue([{ id: "dynamic-opencode-model", label: "dynamic-opencode-model" }]);
+    mockListOpenCodeGoModels.mockReset();
+    mockListOpenCodeGoModels.mockResolvedValue([{ id: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash" }]);
     await unregisterTestAdapter(refreshableAdapterType);
   });
 
@@ -248,5 +255,27 @@ describe("adapter model refresh route", () => {
     expect(res.status, JSON.stringify(res.body)).toBe(200);
     expect(res.body).toEqual([{ id: "dynamic-opencode-model", label: "dynamic-opencode-model" }]);
     expect(mockListOpenCodeModels).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves the OpenCode Go catalog for the opencode-go provider without CLI discovery", async () => {
+    const app = await createApp();
+    const res = await requestApp(app, (baseUrl) =>
+      request(baseUrl).get("/api/companies/company-1/adapters/opencode_local/models?provider=opencode-go"),
+    );
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(res.body).toEqual([{ id: "opencode-go/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash" }]);
+    expect(mockListOpenCodeGoModels).toHaveBeenCalledWith(false);
+    expect(mockListOpenCodeModels).not.toHaveBeenCalled();
+  });
+
+  it("passes refresh through to the OpenCode Go catalog", async () => {
+    const app = await createApp();
+    const res = await requestApp(app, (baseUrl) =>
+      request(baseUrl).get("/api/companies/company-1/adapters/opencode_local/models?provider=opencode-go&refresh=1"),
+    );
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(mockListOpenCodeGoModels).toHaveBeenCalledWith(true);
   });
 });

@@ -133,22 +133,37 @@ export async function canInstallSharedAiConnectionForNewAgent(
     connection.creator === userId || await accessService(db).hasPermission(companyId, "user", userId, "tools:manage_connections");
 }
 
+/**
+ * Fixed provider endpoints that actually authenticate the key. Only these
+ * providers get a control-plane key check. OpenCode Go is deliberately absent:
+ * its catalog endpoint is public and answers 200 for any bearer token, so a
+ * check there would claim a verification it cannot make. The selected harness
+ * exercises that credential instead.
+ */
+const AI_API_KEY_VALIDATION_ENDPOINTS: Partial<Record<AiProvider, string>> = {
+  anthropic: "https://api.anthropic.com/v1/models?limit=1",
+  openai: "https://api.openai.com/v1/models",
+  openrouter: "https://openrouter.ai/api/v1/key",
+  xai: "https://api.x.ai/v1/models",
+  google: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+};
+
+/** True when the control plane can ask a fixed endpoint to verify the key. */
+export function canValidateAiApiKey(provider: AiProvider): boolean {
+  return AI_API_KEY_VALIDATION_ENDPOINTS[provider] !== undefined;
+}
+
 /** Fixed provider endpoints; credentials are never sent to a caller-supplied URL or through a redirect. */
 export async function validateAiApiKey(
   provider: AiProvider,
   key: string,
   request: typeof fetch = fetch,
 ) {
-  const endpoints = {
-    anthropic: "https://api.anthropic.com/v1/models?limit=1",
-    openai: "https://api.openai.com/v1/models",
-    openrouter: "https://openrouter.ai/api/v1/key",
-    xai: "https://api.x.ai/v1/models",
-    google: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
-  };
+  const endpoint = AI_API_KEY_VALIDATION_ENDPOINTS[provider];
+  if (!endpoint) throw unprocessable("This provider has no key validation endpoint.", { code: "ai_connection_verification_failed" });
   let response: Response;
   try {
-    response = await request(endpoints[provider], {
+    response = await request(endpoint, {
       redirect: "error",
       signal: AbortSignal.timeout(15000),
       headers:
@@ -338,7 +353,10 @@ export function aiConnectionRoutes(db: Db, options: Parameters<typeof supportsLo
       const attemptStartedAt = new Date();
       // Custom destinations are exercised in the selected execution environment,
       // never fetched by the control plane (including localhost/private URLs).
-      if (!input.routing || input.routing.kind === "openrouter") await validateAiApiKey(input.provider, input.apiKey!);
+      // OpenCode Go has no key-introspection endpoint, so it cannot be checked
+      // here. The adapter env test (and the first run) exercises the key.
+      if ((!input.routing || input.routing.kind === "openrouter") && canValidateAiApiKey(input.provider))
+        await validateAiApiKey(input.provider, input.apiKey!);
       const result = await service.save(
         companyId,
         userId,

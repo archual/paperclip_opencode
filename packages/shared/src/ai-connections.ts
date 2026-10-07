@@ -31,6 +31,7 @@ export const AI_PROVIDERS = [
   "anthropic",
   "openai",
   "openrouter",
+  "opencode-go",
   "xai",
   "google",
 ] as const;
@@ -103,6 +104,12 @@ export const AI_CONNECTION_CAPABILITIES: Record<
       api_key: { adapters: ["opencode_local"], envKey: "OPENROUTER_API_KEY" },
     },
   },
+  "opencode-go": {
+    name: "OpenCode Go",
+    methods: {
+      api_key: { adapters: ["opencode_local"], envKey: "OPENCODE_API_KEY" },
+    },
+  },
   xai: {
     name: "Grok",
     methods: {
@@ -128,10 +135,15 @@ export function isAiConnectionCompatible(
   const candidates = "mode" in requirement && requirement.mode === "responsible_user"
     ? Object.values(methods)
     : requirement.method ? [methods[requirement.method]] : [];
+  // OpenCode names models with a provider prefix, so a model on these
+  // connections must name the provider that owns it.
+  const catalogPrefix = requirement.provider === "openrouter"
+    ? "openrouter/"
+    : requirement.provider === "opencode-go" ? "opencode-go/" : undefined;
   return (
     candidates.some((method) => method?.adapters.includes(adapterType)) &&
-    (requirement.provider !== "openrouter" ||
-      (typeof model === "string" && model.startsWith("openrouter/")))
+    (catalogPrefix === undefined ||
+      (typeof model === "string" && model.startsWith(catalogPrefix)))
   );
 }
 export type AiConnectionUnavailableReason =

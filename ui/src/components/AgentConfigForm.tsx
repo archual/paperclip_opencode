@@ -895,9 +895,12 @@ export function AgentConfigForm(props: AgentConfigFormProps) {
     ? String(isCreate ? props.values.adapterSchemaValues?.provider ?? "codex"
       : eff("adapterConfig", "provider", config.provider === "acpx" && config.acpxAgent === "codex" ? "codex" : config.provider ?? "codex"))
     : undefined;
-  const modelProvider = adapterType === "opencode_local" && aiConnectionBindingSchema.safeParse(
+  const runtimeAiProvider = aiConnectionBindingSchema.safeParse(
     (overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? runtimeConfig.aiConnection,
-  ).data?.provider === "openrouter" ? "openrouter" : runnerProvider;
+  ).data?.provider;
+  const modelProvider = adapterType === "opencode_local" && (runtimeAiProvider === "openrouter" || runtimeAiProvider === "opencode-go")
+    ? runtimeAiProvider
+    : runnerProvider;
   const connectionModels = useConnectionModels(selectedCompanyId, isCreate ? undefined : aiConnectionBindingSchema.safeParse((overlay.runtime.runtimeConfig as Record<string, unknown> | undefined)?.aiConnection ?? runtimeConfig.aiConnection).data, aiRoutingHarness(adapterType, runnerProvider, eff("adapterConfig", "acpxAgent", config.acpxAgent)));
   // Fetch adapter models for the effective provider, including unsaved changes.
   const modelQueryKey = selectedCompanyId

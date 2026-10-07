@@ -42,7 +42,7 @@ export const SANDBOX_INSTALL_COMMAND =
   'fi; ' +
   'fi';
 
-export const DEFAULT_OPENCODE_LOCAL_MODEL = "openai/gpt-5.2-codex";
+export const DEFAULT_OPENCODE_LOCAL_MODEL = "opencode-go/deepseek-v4.1-flash";
 
 export function isValidOpenCodeModelId(value: unknown): value is string {
   if (typeof value !== "string") return false;
@@ -53,6 +53,51 @@ export function isValidOpenCodeModelId(value: unknown): value is string {
 
 export const models: Array<{ id: string; label: string }> = [
   { id: DEFAULT_OPENCODE_LOCAL_MODEL, label: DEFAULT_OPENCODE_LOCAL_MODEL },
+  // OpenCode Go catalog, https://opencode.ai/zen/go/v1/models. Static fallback
+  // for hosts where `opencode models` discovery cannot run.
+  { id: "opencode-go/minimax-m3", label: "opencode-go/minimax-m3" },
+  { id: "opencode-go/minimax-m2.7", label: "opencode-go/minimax-m2.7" },
+  { id: "opencode-go/minimax-m2.5", label: "opencode-go/minimax-m2.5" },
+  { id: "opencode-go/kimi-k3", label: "opencode-go/kimi-k3" },
+  { id: "opencode-go/kimi-k2.7-code", label: "opencode-go/kimi-k2.7-code" },
+  { id: "opencode-go/kimi-k2.6", label: "opencode-go/kimi-k2.6" },
+  { id: "opencode-go/kimi-k2.5", label: "opencode-go/kimi-k2.5" },
+  { id: "opencode-go/longcat-2.0", label: "opencode-go/longcat-2.0" },
+  { id: "opencode-go/glm-5.2", label: "opencode-go/glm-5.2" },
+  { id: "opencode-go/glm-5.3-flash", label: "opencode-go/glm-5.3-flash" },
+  { id: "opencode-go/glm-5.3", label: "opencode-go/glm-5.3" },
+  { id: "opencode-go/glm-5.1", label: "opencode-go/glm-5.1" },
+  { id: "opencode-go/glm-5", label: "opencode-go/glm-5" },
+  { id: "opencode-go/deepseek-v4-pro", label: "opencode-go/deepseek-v4-pro" },
+  { id: "opencode-go/deepseek-v4-flash", label: "opencode-go/deepseek-v4-flash" },
+  { id: "opencode-go/deepseek-flash", label: "opencode-go/deepseek-flash" },
+  { id: "opencode-go/deepseek-v4.1-flash", label: "opencode-go/deepseek-v4.1-flash" },
+  { id: "opencode-go/deepseek-v4-flash-vision-exp", label: "opencode-go/deepseek-v4-flash-vision-exp" },
+  { id: "opencode-go/qwen3.7-max", label: "opencode-go/qwen3.7-max" },
+  { id: "opencode-go/qwen3.8-max", label: "opencode-go/qwen3.8-max" },
+  { id: "opencode-go/qwen3.8-flash", label: "opencode-go/qwen3.8-flash" },
+  { id: "opencode-go/qwen3.7-plus", label: "opencode-go/qwen3.7-plus" },
+  { id: "opencode-go/qwen3.6-plus", label: "opencode-go/qwen3.6-plus" },
+  { id: "opencode-go/qwen3.5-plus", label: "opencode-go/qwen3.5-plus" },
+  { id: "opencode-go/mimo-v2-pro", label: "opencode-go/mimo-v2-pro" },
+  { id: "opencode-go/mimo-v2-omni", label: "opencode-go/mimo-v2-omni" },
+  { id: "opencode-go/mimo-v2.6-pro", label: "opencode-go/mimo-v2.6-pro" },
+  { id: "opencode-go/mimo-v2.6-flash", label: "opencode-go/mimo-v2.6-flash" },
+  { id: "opencode-go/longcat-2.5-preview-free", label: "opencode-go/longcat-2.5-preview-free" },
+  { id: "opencode-go/mimo-v2.5-pro", label: "opencode-go/mimo-v2.5-pro" },
+  { id: "opencode-go/mimo-v2.5", label: "opencode-go/mimo-v2.5" },
+  { id: "opencode-go/hy4-preview", label: "opencode-go/hy4-preview" },
+  { id: "opencode-go/hy3", label: "opencode-go/hy3" },
+  { id: "opencode-go/hy3-preview", label: "opencode-go/hy3-preview" },
+  { id: "opencode-go/gpt-5.6-luna", label: "opencode-go/gpt-5.6-luna" },
+  { id: "opencode-go/grok-4.5", label: "opencode-go/grok-4.5" },
+  { id: "opencode-go/grok-4.7", label: "opencode-go/grok-4.7" },
+  { id: "opencode-go/grok-4.6", label: "opencode-go/grok-4.6" },
+  { id: "opencode-go/muse-spark-1.3-contributor", label: "opencode-go/muse-spark-1.3-contributor" },
+  { id: "opencode-go/muse-spark-1.2-contributor", label: "opencode-go/muse-spark-1.2-contributor" },
+  { id: "opencode-go/omen-alpha", label: "opencode-go/omen-alpha" },
+  { id: "opencode-go/gpt-6-luna", label: "opencode-go/gpt-6-luna" },
+  { id: "opencode-go/space-bunny", label: "opencode-go/space-bunny" },
   { id: "openai/gpt-6-astra", label: "openai/gpt-6-astra" },
   { id: "openai/gpt-6.1-sol", label: "openai/gpt-6.1-sol" },
   { id: "openai/gpt-6-sol", label: "openai/gpt-6-sol" },

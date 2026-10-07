@@ -26,11 +26,11 @@ import { execute as executeGemini, testEnvironment as testGeminiEnvironment } fr
 import { toolAccessService } from "../services/tool-access.js";
 import { secretService } from "../services/secrets.js";
 import { resolveExecutionRunAdapterConfig } from "../services/heartbeat.js";
-import { aiConnectionBindingSchema, connectionPurposeTransportSchema, isAiConnectionCompatible } from "@paperclipai/shared";
+import { aiConnectionBindingSchema, connectionPurposeTransportSchema, isAiConnectionCompatible, AI_CONNECTION_CAPABILITIES } from "@paperclipai/shared";
 import express from "express";
 import request from "supertest";
 import { aiConnectionRoutes, canInstallSharedAiConnectionForNewAgent, responsibleUserForAiRequest } from "../routes/ai-connections.js";
-import { validateAiApiKey } from "../routes/ai-connections.js";
+import { canValidateAiApiKey, validateAiApiKey } from "../routes/ai-connections.js";
 vi.mock("../services/local-ai-browser-login.js", () => ({
   startLocalBrowserLogin: () => ({ authorizationUrl: "https://auth.openai.com/codex/device", code: "ABCD-EFGHJ", abort: () => {} }),
 }));
@@ -792,7 +792,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       provider: "google", method: "api_key", ownership: "personal", name: "Google migration",
       apiKey: "fixture", allAgents: true, agentIds: [],
     }, "google-migration-key");
-    const migration = await readFile(new URL("../../../packages/db/src/migrations/0306_familiar_titania.sql", import.meta.url), "utf8");
+    const migration = await readFile(new URL("../../../packages/db/src/migrations/0312_magical_cerebro.sql", import.meta.url), "utf8");
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await db.transaction(async (tx) => {
         for (const statement of migration.split("--> statement-breakpoint")) {
@@ -904,6 +904,25 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     await expect(service.save(companyId, "alice", { provider: "openrouter", method: "api_key", name: "Routed test", ownership: "personal", apiKey: "fixture", connectionId: saved.connectionId, allAgents: true, agentIds: [], routing: { ...routing, kind: "gateway", baseUrl: "https://other.example/v1", models: [] } }, "fixture-replacement")).rejects.toThrow("retain");
     await db.update(connectionGrants).set({ status: "revoked" }).where(eq(connectionGrants.id, saved.grantId));
     await expect(service.select({ ...input, binding: selected, userId: "alice", adapterType: "codex_local", model: "openai/gpt-5.4" })).rejects.toThrow("Reconnect");
+  });
+  it("projects an OpenCode Go API key into the OpenCode config without a routing gateway", async () => {
+    await service.save(companyId, "alice", { provider: "opencode-go", method: "api_key", name: "Go runtime account", ownership: "personal", apiKey: "fixture-go-credential", agentIds: [agentId], allAgents: false }, "fixture-go-credential");
+    const runtime = await prepareManagedAiRuntime(db, {
+      companyId, agentId, responsibleUserId: "alice", adapterType: "opencode_local",
+      binding: { provider: "opencode-go", method: "api_key", mode: "responsible_user" },
+      config: { model: "opencode-go/deepseek-v4.1-flash", env: { OPENCODE_API_KEY: "ambient-never-use", KEEP: "value" } },
+    });
+    try {
+      const env = runtime.config.env as Record<string, string>;
+      // The managed key wins over the ambient value and reaches the harness.
+      expect(env.OPENCODE_API_KEY).toBe("fixture-go-credential");
+      expect(env.KEEP).toBe("value");
+      expect(JSON.parse(env.OPENCODE_CONFIG_CONTENT)).toEqual({
+        provider: { "opencode-go": { options: { apiKey: "fixture-go-credential" } } },
+      });
+      expect(env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe("true");
+      expect(runtime.attribution).toMatchObject({ provider: "opencode-go", method: "api_key" });
+    } finally { await runtime.cleanup(); }
   });
   it("reconnects JSONB routing without changing its identity or access", async () => {
     const routing = { kind: "gateway", protocol: "responses", auth: "bearer", baseUrl: "https://gateway.example/v1", models: [{ id: "gateway-model" }] } as const;
@@ -1499,6 +1518,16 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "claude")).toBe(true);
     expect(isAiConnectionCompatible(binding, "paperclip_runner", "same-model", "acpx", "codex")).toBe(false);
     expect(isAiConnectionCompatible({ provider: "openrouter", method: "api_key" }, "opencode_local", "anthropic/model")).toBe(false);
+    // OpenCode Go names its models with the transport prefix, and only its own
+    // catalog can validate the key, so the control plane never probes it.
+    expect(AI_CONNECTION_CAPABILITIES["opencode-go"]).toEqual({
+      name: "OpenCode Go",
+      methods: { api_key: { adapters: ["opencode_local"], envKey: "OPENCODE_API_KEY" } },
+    });
+    expect(canValidateAiApiKey("opencode-go")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "opencode-go", method: "api_key", mode: "responsible_user" }, "opencode_local", "opencode-go/deepseek-v4.1-flash")).toBe(true);
+    expect(isAiConnectionCompatible({ provider: "opencode-go", method: "api_key", mode: "responsible_user" }, "opencode_local", "deepseek-v4.1-flash")).toBe(false);
+    expect(isAiConnectionCompatible({ provider: "opencode-go", method: "api_key", mode: "responsible_user" }, "claude_local", "opencode-go/deepseek-v4.1-flash")).toBe(false);
   });
   it("does not let a forged delegation bypass human access or accept an expired subscription attempt", async () => {
     const selected = await service.select({ ...input, userId: "alice" });
@@ -1536,6 +1565,28 @@ console.log(JSON.stringify({ type: "result", subtype: "success", result: "hello"
       expect((await request(app).post(base).send({ ...payload, ownership: "shared" })).status).toBe(403);
       expect((await request(app).post(base).set("x-test-user", "bob").send({ ...payload, connectionId: personal.connection.id })).status).toBe(403);
       expect(network).not.toHaveBeenCalled();
+    } finally { network.mockRestore(); }
+  });
+  it("saves an OpenCode Go API key without a control-plane key check", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.actor = { type: "board", source: "session", userId: "alice", companyIds: [companyId], memberships: [{ companyId, membershipRole: "member", status: "active" }] };
+      next();
+    });
+    app.use("/api", aiConnectionRoutes(db));
+    app.use((error: { status?: number; message: string }, _req: express.Request, res: express.Response, _next: express.NextFunction) => { res.status(error.status ?? 500).json({ error: error.message }); });
+    const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("must not reach provider"));
+    try {
+      const created = await request(app).post(`/api/companies/${companyId}/ai-connections`).send({
+        provider: "opencode-go", method: "api_key", name: "Go onboarding account", ownership: "personal", apiKey: "fixture-go-key", allAgents: false, agentIds: [],
+      });
+      expect(created.status, JSON.stringify(created.body)).toBe(201);
+      expect(created.body).toMatchObject({ connectionId: expect.any(String), grantId: expect.any(String) });
+      // The catalog endpoint answers any bearer token, so the create path must
+      // not perform a key check that cannot prove anything.
+      expect(network).not.toHaveBeenCalled();
+      expect((await service.list(companyId, "alice")).some(account => account.provider === "opencode-go" && account.name === "Go onboarding account")).toBe(true);
     } finally { network.mockRestore(); }
   });
   it.each(["anthropic", "openai"] as const)("reports a missing %s browser process after a server restart", async provider => {

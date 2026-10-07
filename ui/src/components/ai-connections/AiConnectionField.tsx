@@ -32,7 +32,7 @@ export function aiProviderForAdapter(
     {
       claude_local: "anthropic",
       codex_local: "openai",
-      opencode_local: "openrouter",
+      opencode_local: "opencode-go",
       grok_local: "xai",
       gemini_local: "google",
       hermes_local: "openrouter",
@@ -111,7 +111,7 @@ export function AiConnectionField({
   };
   const method: AiAuthMethod = (value && value.mode !== "router" && value.mode !== "responsible_user" ? value.method : undefined)
     ?? accounts.data?.connections.find((account) => account.provider === provider && account.isDefault)?.method
-    ?? (provider === "openrouter" || provider === "google" ? "api_key" : "subscription");
+    ?? (provider === "openrouter" || provider === "opencode-go" || provider === "google" ? "api_key" : "subscription");
   const compatiblePools = agentId ? accounts.data?.pools?.filter(pool => pool.enabled && pool.members.some(member => isAiConnectionCompatible(member.binding, routerAdapterType ?? adapterType, member.profile.model, member.profile.provider, member.profile.acpxAgent))) ?? [] : [];
   if (!provider) return null;
   if (legacy && !value && !adopting)
@@ -236,7 +236,7 @@ export function AiConnectionField({
             initialMethod={reconnecting?.method ?? method}
             fixedMethod={Boolean(reconnecting)}
             connectionId={reconnecting?.id}
-            name={reconnecting?.name ?? `My ${provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : provider === "xai" ? "Grok" : provider === "google" ? "Gemini" : "OpenRouter"} ${method === "subscription" ? "subscription" : "API"}`}
+            name={reconnecting?.name ?? `My ${provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : provider === "xai" ? "Grok" : provider === "google" ? "Gemini" : provider === "opencode-go" ? "OpenCode Go" : "OpenRouter"} ${method === "subscription" ? "subscription" : "API"}`}
             ownership="personal"
             agentIds={agentId ? [agentId] : []}
             allAgents={allAgents}

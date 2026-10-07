@@ -126,18 +126,22 @@ vi.mock("../services/ai-connections.js", async (importOriginal) => ({
   aiConnectionService: () => ({ markAuthenticationFailed: mockMarkAuthenticationFailed }),
 }));
 
-function mockManagedRuntime(method: "api_key" | "subscription") {
+function mockManagedRuntime(
+  method: "api_key" | "subscription",
+  provider = "anthropic",
+  envKey = "ANTHROPIC_API_KEY",
+) {
   mockPrepareManagedAiRuntime.mockImplementation(
     async (_db: unknown, input: { config: Record<string, unknown> }) => ({
       config: {
         ...input.config,
         // The real preparation injects the credential under the provider's
         // env key; the adoption re-verification reads it from there.
-        env: { ...(method === "api_key" ? { ANTHROPIC_API_KEY: "sk-ant-test-key" } : {}) },
+        env: { ...(method === "api_key" ? { [envKey]: "sk-ant-test-key" } : {}) },
         managedAiConnection: {
           connectionId: "conn-1",
           grantId: "grant-1",
-          provider: "anthropic",
+          provider,
           method,
           mode: "responsible_user",
           responsibleUserId: "local-board",
@@ -147,7 +151,7 @@ function mockManagedRuntime(method: "api_key" | "subscription") {
       attribution: {
         connectionId: "conn-1",
         grantId: "grant-1",
-        provider: "anthropic",
+        provider,
         method,
         mode: "responsible_user",
         responsibleUserId: "local-board",
@@ -478,6 +482,44 @@ describe("agent test-environment route", () => {
       companyId: "company-1",
       attribution: expect.objectContaining({ connectionId: "conn-1", grantId: "grant-1" }),
     }));
+  });
+
+  it("adopts an opencode-go api_key connection without a key-validation endpoint", async () => {
+    mockManagedRuntime("api_key", "opencode-go", "OPENCODE_API_KEY");
+    // The forced CLI-lane fallback would land on opencode_local, so a sentinel
+    // there proves the route never demands a hello probe for this provider.
+    const { registerServerAdapter, getServerAdapter, unregisterServerAdapter } = await import("../adapters/index.js");
+    const previous = getServerAdapter("opencode_local");
+    unregisterServerAdapter("opencode_local");
+    const cliProbeSpy = vi.fn(async () => ({
+      adapterType: "opencode_local",
+      status: "fail" as const,
+      checks: [{ code: "adapter_command_missing", level: "error" as const, message: 'Command not found in PATH: "opencode"' }],
+      testedAt: new Date(0).toISOString(),
+    }));
+    registerServerAdapter({ ...externalAdapter, type: "opencode_local", testEnvironment: cliProbeSpy });
+    try {
+      const app = await createApp();
+      const res = await request(app)
+        .post("/api/companies/company-1/adapters/external_test/test-environment")
+        .send({
+          adapterConfig: { cwd: "/" },
+          aiConnection: { provider: "opencode-go", method: "api_key", mode: "responsible_user" },
+        });
+      expect(res.status, JSON.stringify(res.body)).toBe(200);
+      expect(res.body.status).toBe("pass");
+      const codes = res.body.checks.map((check: { code: string }) => check.code);
+      // The provider has no key-introspection endpoint; the adapter test already
+      // carried the projected credential, so adoption stays an honest info check.
+      expect(codes).toContain("ai_connection_api_key_unverified");
+      expect(codes).not.toContain("ai_connection_validation_incomplete");
+      expect(mockValidateAiApiKey).not.toHaveBeenCalled();
+      expect(testEnvironmentSpy).toHaveBeenCalledTimes(1);
+      expect(cliProbeSpy).not.toHaveBeenCalled();
+    } finally {
+      unregisterServerAdapter("opencode_local");
+      if (previous) registerServerAdapter(previous);
+    }
   });
 
   it("still fails subscription adoption when no hello probe can run", async () => {

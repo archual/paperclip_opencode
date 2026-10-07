@@ -144,14 +144,18 @@ function Setup({
   const [effort, setEffort] = useState("");
   const [modelOpen, setModelOpen] = useState(false);
   const [environmentOverride, setEnvironmentOverride] = useState("");
-  const [provider, setProvider] = useState("openrouter");
+  // OpenCode's own provider ids; every other harness keeps the OpenRouter
+  // default its provider map offered before OpenCode Go existed.
+  const [provider, setProvider] = useState(
+    brandType === "opencode_local" ? "opencode-go" : "openrouter",
+  );
   const [apiKey, setApiKey] = useState("");
   const [providerBinding, setProviderBinding] = useState<EnvBinding | null>(
     null,
   );
   const [runtimeAiBinding, setRuntimeAiBinding] = useState<AiConnectionBinding | undefined>(() =>
     brandType === "opencode_local"
-      ? { provider: "openrouter", method: "api_key", mode: "responsible_user" }
+      ? { provider: "opencode-go", method: "api_key", mode: "responsible_user" }
       : undefined,
   );
   const [connection, setConnection] = useState<ProviderConnection | null>(null);
@@ -947,6 +951,7 @@ function Setup({
                                                 xai: "xAI",
                                                 groq: "Groq",
                                                 opencode: "OpenCode",
+                                                "opencode-go": "OpenCode Go",
                                               }[key] ?? key)}
                                     </option>
                                   ))}

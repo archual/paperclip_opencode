@@ -20,14 +20,16 @@ export function useConnectionModels(
       : c.id === binding?.connectionId && c.grantId === binding?.grantId,
   );
   const routing = connection?.routing;
+  const openCodeGo = !routing && binding?.provider === "opencode-go";
   const openRouter = routing?.kind === "openrouter" || (!routing && binding?.provider === "openrouter");
-  const discover = openRouter && !routing?.models.length;
-  // Reuse the existing public catalog and its query cache. It returns OpenCode IDs;
-  // strip only that transport prefix for other harnesses (openrouter/auto is
-  // itself a valid upstream model ID).
+  const discover = (openRouter || openCodeGo) && !routing?.models.length;
+  // Reuse the existing public catalogs and their query caches. OpenRouter
+  // returns unprefixed OpenCode IDs; OpenCode Go IDs already carry their
+  // transport prefix.
+  const catalogProvider = openCodeGo ? "opencode-go" : "openrouter";
   const catalog = useQuery({
-    queryKey: queryKeys.agents.adapterModels(companyId ?? "none", "opencode_local", null, "openrouter"),
-    queryFn: () => agentsApi.adapterModels(companyId!, "opencode_local", { provider: "openrouter" }),
+    queryKey: queryKeys.agents.adapterModels(companyId ?? "none", "opencode_local", null, catalogProvider),
+    queryFn: () => agentsApi.adapterModels(companyId!, "opencode_local", { provider: catalogProvider }),
     enabled: Boolean(companyId && discover),
     staleTime: 60_000,
     retry: false,
@@ -36,8 +38,19 @@ export function useConnectionModels(
     ? { kind: "openrouter", protocol: "chat", auth: "bearer", models: [] }
     : undefined);
   const modelOptions = discover
-    ? (catalog.data ?? []).map((m) => ({ ...m, id: harness === "opencode_local" ? m.id : m.id.replace(/^openrouter\//, "") }))
+    ? openCodeGo
+      ? catalog.data ?? []
+      : (catalog.data ?? []).map((m) => ({ ...m, id: harness === "opencode_local" ? m.id : m.id.replace(/^openrouter\//, "") }))
     : routing?.models ?? [];
+  if (openCodeGo)
+    return {
+      models: modelOptions.map((m) => ({ id: m.id, label: m.label ?? m.id })),
+      isLoading: discover && catalog.isLoading,
+      error: discover ? catalog.error : null,
+      refreshing: discover && catalog.isFetching,
+      refreshModels: discover ? async () => { await catalog.refetch(); } : undefined,
+      resolveModel: (model: string) => model,
+    };
   return effectiveRouting
     ? {
         models: modelOptions.map((m) => ({

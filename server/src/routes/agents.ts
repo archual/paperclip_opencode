@@ -9,12 +9,13 @@ import { agentFileStore, agentFileTokenFromHash } from "../services/agent-file-s
 import { pipeline } from "node:stream/promises";
 import { resolveAgentAppearance, agentAvatarUrl } from "@paperclipai/shared";
 import { listOpenRouterModels } from "../services/openrouter-models.js";
+import { listOpenCodeGoModels } from "../services/opencode-go-models.js";
 import { prepareManagedAiRuntime, withManagedAiProbe, assertManagedAiProjectAuth, stripAiAuthBindings } from "../services/ai-connection-runtime.js";
 import { ADAPTER_AUTH_MISSING_CHECK_CODE, AI_CONNECTION_CAPABILITIES, aiConnectionBindingSchema, type AiConnectionBinding, aiRuntimeConnectionBindingSchema, type AiRuntimeConnectionBinding } from "@paperclipai/shared";
 import { toolConnections } from "@paperclipai/db";
 import { aiConnectionService } from "../services/ai-connections.js";
 import { defaultAiConnectionForHire } from "../services/agent-ai-connection-default.js";
-import { assertAiConnectionCreateAccess, canInstallSharedAiConnectionForNewAgent, responsibleUserForAiRequest, validateAiApiKey } from "./ai-connections.js";
+import { assertAiConnectionCreateAccess, canInstallSharedAiConnectionForNewAgent, canValidateAiApiKey, responsibleUserForAiRequest, validateAiApiKey } from "./ai-connections.js";
 import { isAiConnectionCompatible } from "@paperclipai/shared";
 import { applyConnectorSkills, resolveConnectorAssignments, annotateConnectorSkills, isConnectorSkill } from "../services/connector-runtime.js";
 import { getExecutionBlocker } from "../services/execution-blocker.js";
@@ -2938,10 +2939,10 @@ export function agentRoutes(
     ...INHERITABLE_AGENT_CREDENTIAL_ENV_KEYS,
     gemini_local: ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
     kimi_local: ["KIMI_MODEL_API_KEY"],
-    opencode_local: ["PAPERCLIP_OPENCODE_PROVIDERS", "OPENCODE_AUTH_JSON"],
+    opencode_local: ["OPENCODE_API_KEY", "PAPERCLIP_OPENCODE_PROVIDERS", "OPENCODE_AUTH_JSON"],
   };
   const POOL_AUTH_OVERRIDE_ENV_KEYS = [
-    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "PAPERCLIP_OPENCODE_PROVIDERS", "OPENCODE_AUTH_JSON",
+    "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENCODE_API_KEY", "PAPERCLIP_OPENCODE_PROVIDERS", "OPENCODE_AUTH_JSON",
   ] as const;
 
   async function callerUsesAiConnectionPool(req: Request, companyId: string): Promise<boolean> {
@@ -3340,6 +3341,10 @@ export function agentRoutes(
       res.json(await listOpenRouterModels(refresh));
       return;
     }
+    if (type === "opencode_local" && provider === "opencode-go") {
+      res.json(await listOpenCodeGoModels(refresh));
+      return;
+    }
     if (type === "paperclip_runner" && provider && !isPaperclipRunnerProvider(provider)) {
       throw unprocessable("Unknown Paperclip Runner provider");
     }
@@ -3440,6 +3445,13 @@ export function agentRoutes(
     if (resolvedMethod === "api_key" && !context.config.managedAiRouting) {
       const envKey = AI_CONNECTION_CAPABILITIES[binding.provider].methods.api_key?.envKey;
       const key = envKey ? parseObject(context.config.env)[envKey] : undefined;
+      if (!canValidateAiApiKey(binding.provider)) {
+        // OpenCode Go answers its public catalog endpoint for any bearer token,
+        // so a control-plane check cannot prove the key. The adapter test above
+        // already ran the harness with the projected credential.
+        result.checks.push({ code: "ai_connection_api_key_unverified", level: "info", message: "This provider has no key-introspection endpoint; the harness test carries the credential instead." });
+        return result;
+      }
       try {
         if (typeof key !== "string" || !key) throw unprocessable("The selected account's API key was not available to verify.");
         await validateAiApiKey(binding.provider, key);
@@ -3452,7 +3464,7 @@ export function agentRoutes(
       return result;
     }
     if (!result.checks.some(check => check.code.includes("hello_probe"))) {
-      const providerAdapter = context.config.managedAiRouting ? aiRoutingHarness(adapterType, context.config.provider, context.config.acpxAgent) : { anthropic: "claude_local", openai: "codex_local", openrouter: "opencode_local", xai: "grok_local", google: "gemini_local" }[binding.provider];
+      const providerAdapter = context.config.managedAiRouting ? aiRoutingHarness(adapterType, context.config.provider, context.config.acpxAgent) : { anthropic: "claude_local", openai: "codex_local", openrouter: "opencode_local", "opencode-go": "opencode_local", xai: "grok_local", google: "gemini_local" }[binding.provider];
       const probe = await requireServerAdapter(providerAdapter).testEnvironment({ ...context, adapterType: providerAdapter, config: { ...context.config, engine: "cli" } });
       result.checks.push(...probe.checks);
       result.status = probe.status === "fail" ? "fail" : result.status === "warn" || probe.status === "warn" ? "warn" : "pass";
