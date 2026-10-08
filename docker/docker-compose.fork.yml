@@ -1,0 +1,34 @@
+# Fork deployment: runs the locally built paperclip-fork image on the official
+# stack's data volume and network. Build the image first with
+# scripts/build-fork-artifacts.sh + docker/Dockerfile.fork (see README notes).
+#
+# The official stack must be stopped first (it uses the same port and volume).
+services:
+  paperclip:
+    image: paperclip-fork:local
+    container_name: paperclip-fork
+    ports:
+      - "3100:3100"
+    environment:
+      - HOST=0.0.0.0
+      - PAPERCLIP_HOME=/paperclip
+      - PAPERCLIP_DEPLOYMENT_MODE=authenticated
+      - PAPERCLIP_DEPLOYMENT_EXPOSURE=private
+      - PAPERCLIP_PUBLIC_URL=http://192.168.1.89:3100
+      - BETTER_AUTH_SECRET=a_very_long_random_string_for_security_32_chars
+      - OPENAI_API_KEY=your_openai_api_key
+    volumes:
+      - paperclip_data:/paperclip
+    networks:
+      - ai-network
+    restart: unless-stopped
+
+volumes:
+  paperclip_data:
+    external: true
+    name: paper-clip_paperclip_data
+
+networks:
+  ai-network:
+    external: true
+    name: paper-clip_ai-network
