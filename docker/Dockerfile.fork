@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1.20
+#
+# Local fork image. The application artifacts (server/dist, ui/dist,
+# packages/paperclip-runner/dist) are compiled on the host by
+# scripts/build-fork-artifacts.sh and ship through the build context; this
+# build only refreshes node_modules against the fork lockfile and layers the
+# source tree over the official runtime image. Compiling inside the image is
+# avoided because the Docker host has limited memory.
+#
+# Build from the repository root:
+#   ./scripts/build-fork-artifacts.sh
+#   docker buildx build -f docker/Dockerfile.fork \
+#     --build-arg PAPERCLIP_BUILD_COMMIT="$(git rev-parse HEAD)" \
+#     -t paperclip-fork:local --load .
+FROM ghcr.io/paperclipai/paperclip:latest
+
+WORKDIR /app
+# Replace the upstream build outputs with the fork's; never merge into them.
+RUN rm -rf server/dist ui/dist packages/paperclip-runner/dist
+
+COPY . .
+
+ARG PAPERCLIP_BUILD_COMMIT=""
+ARG PAPERCLIP_BUILD_VERSION=""
+
+# The official image is a production image (NODE_ENV=production), which would
+# make pnpm skip the devDependencies the agent CLIs' peer packages need.
+ENV NODE_ENV=development \
+    NODE_OPTIONS=--max-old-space-size=3072 \
+    PAPERCLIP_BUILD_COMMIT=${PAPERCLIP_BUILD_COMMIT} \
+    PAPERCLIP_BUILD_VERSION=${PAPERCLIP_BUILD_VERSION}
+
+# confirmModulesPurge=false is required: the base image's node_modules comes
+# from a different pnpm install, and without it pnpm stops at an interactive
+# purge prompt (a no-op install that leaves stale patched packages behind).
+# The chown keeps the runtime user able to write inside node_modules (the
+# embedded Postgres runtime creates a shared-library alias there at boot).
+RUN --mount=type=cache,target=/paperclip/.local/share/pnpm/store \
+    --mount=type=cache,target=/paperclip/.cache/node/corepack \
+    pnpm install --frozen-lockfile --config.confirmModulesPurge=false \
+  && chown -R node:node /app/node_modules \
+  && chown node:node /app
+
+# Restore the runtime environment the official image expects.
+ENV NODE_ENV=production \
+    NODE_OPTIONS=

@@ -42,5 +42,9 @@ packages/paperclip-runner/scripts/*-smoke.mjs
 # they must survive the *.test.ts rule above.
 !packages/paperclip-runner/src/**/*.test.ts
 !packages/paperclip-runner/src/**/*.test.tsx
+# The fork image copies the host-compiled runner dist instead of rebuilding it
+# (the runtime image has no Rust toolchain).
+!packages/paperclip-runner/dist
+!packages/paperclip-runner/dist/**
 
 packages/grok-acp/bin
