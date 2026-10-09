@@ -14,7 +14,8 @@ services:
       - PAPERCLIP_HOME=/paperclip
       - PAPERCLIP_DEPLOYMENT_MODE=authenticated
       - PAPERCLIP_DEPLOYMENT_EXPOSURE=private
-      - PAPERCLIP_PUBLIC_URL=http://192.168.1.89:3100
+      - PAPERCLIP_PUBLIC_URL=https://pape.k1812.ru
+      - PAPERCLIP_ALLOWED_HOSTNAMES=pape.k1812.ru,192.168.1.89
       - BETTER_AUTH_SECRET=a_very_long_random_string_for_security_32_chars
       - OPENAI_API_KEY=your_openai_api_key
     volumes:
